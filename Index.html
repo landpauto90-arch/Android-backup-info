@@ -1,0 +1,79 @@
+require("dotenv").config();
+const express = require("express");
+const axios = require("axios");
+
+const app = express();
+app.use(express.json());
+
+/* =========================
+   WEBHOOK VERIFY (META)
+========================= */
+app.get("/webhook", (req, res) => {
+    const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode && token === VERIFY_TOKEN) {
+        return res.status(200).send(challenge);
+    }
+    res.sendStatus(403);
+});
+
+/* =========================
+   RECEIVE MESSAGES
+========================= */
+app.post("/webhook", async (req, res) => {
+    const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+    if (message) {
+        const from = message.from;
+        const text = message.text?.body;
+
+        console.log("📩 Incoming:", text);
+
+        // SIMPLE BOT LOGIC (upgrade later to AI)
+        let reply = "Bot: You said -> " + text;
+
+        await sendMessage(from, reply);
+    }
+
+    res.sendStatus(200);
+});
+
+/* =========================
+   SEND MESSAGE FUNCTION
+========================= */
+async function sendMessage(to, text) {
+    try {
+        const url = `https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`;
+
+        await axios.post(
+            url,
+            {
+                messaging_product: "whatsapp",
+                to,
+                text: { body: text }
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.ACCESS_TOKEN}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        console.log("✅ Sent:", text);
+    } catch (err) {
+        console.log("❌ Error sending message:", err.message);
+    }
+}
+
+/* =========================
+   START SERVER
+========================= */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log("🚀 WhatsApp Cloud Bot running on port", PORT);
+});
